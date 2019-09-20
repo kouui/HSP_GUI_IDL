@@ -854,7 +854,7 @@ bs_sp=widget_base(main, /column, /frame)
 	bs_sp6=widget_base(bs_sp, /row)
 
 		lab=widget_label(bs_sp6,value='    nCPU for saving fits: ')
-		wd.nCPU = widget_text(bs_sp5,value=string(wp.nCPU, form='(i5)'), xsize=6, ysize=1, uvalue='nCPU',/edit)
+		wd.nCPU = widget_text(bs_sp6,value=string(wp.nCPU, form='(i5)'), xsize=6, ysize=1, uvalue='nCPU',/edit)
 ;------- removed ------------------------------------------------
 	bs_sp6=widget_base(bs_sp, /row)
 		
