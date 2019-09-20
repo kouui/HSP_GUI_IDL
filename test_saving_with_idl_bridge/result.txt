@@ -1,0 +1,35 @@
+IDL> .r try_bridge.pro
+% Compiled module: $MAIN$.
+---- with bridge ----
+using bridge        0
+% Time elapsed: 3.5766649 seconds.
+using bridge        1
+% Time elapsed: 7.0444331 seconds.
+using bridge        2
+% Time elapsed: 10.523580 seconds.
+using bridge        0
+% Time elapsed: 14.034708 seconds.
+using bridge        1
+% Time elapsed: 17.485495 seconds.
+using bridge        2
+% Time elapsed: 20.985233 seconds.
+using bridge        0
+% Time elapsed: 24.493143 seconds.
+using bridge        1
+% Time elapsed: 27.891589 seconds.
+using bridge        2
+% Time elapsed: 31.242391 seconds.
+% Time elapsed: 31.242493 seconds.
+IDL> .r try_nobridge.pro
+% Compiled module: $MAIN$.
+---- without bridge ----
+% Time elapsed: 6.2301528 seconds.
+% Time elapsed: 12.732637 seconds.
+% Time elapsed: 19.159542 seconds.
+% Time elapsed: 25.571359 seconds.
+% Time elapsed: 32.205242 seconds.
+% Time elapsed: 38.903917 seconds.
+% Time elapsed: 45.594288 seconds.
+% Time elapsed: 51.996693 seconds.
+% Time elapsed: 58.441643 seconds.
+% Time elapsed: 58.441761 seconds.
