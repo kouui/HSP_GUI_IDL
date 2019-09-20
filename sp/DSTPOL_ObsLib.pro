@@ -516,8 +516,9 @@ return,filename
 
 END
 ;**************************************************************
-FUNCTION PolObs,polstate,wp,firstimg=firstimg
-;20161111  t.a.         ;add index 'AZ' and 'IMGROT'
+FUNCTION PolObs,polstate,wp,bi,firstimg=firstimg
+; 20161111  t.a.         ; add index 'AZ' and 'IMGROT'
+; 20190920  k.u          ; add input argument `bi`: bridge index used in bridge array
 ;--------------------------------------------------------------
 COMMON bridge,bridge
 
@@ -545,145 +546,25 @@ case wp.camera of
 		p.date_obs=get_systime(ctime=stctime)
 		print,'trigger waiting, ',p.date_obs & wait,0.1
 
-		; if true, capture image, create fits header and then save fits using IDL_IDLBridge
-		; ----- START : skip since if 0 -----------------------------------------
-		if 0 then begin
+		
+		imgs=OrcaObs(nimg=wp.nimg,/grabimg_wait)
+		p.date_obs2=get_systime(ctime=enctime)
+		print,'complete taking images',p.date_obs2
 
-			done=0b
-			while done ne 1 do begin
-				for i=0,n_elements(bridge)-1 do begin
-					if bridge[i]->status() eq 0 then begin
-						;print,get_systime(ctime=enctime)   ;~0sec
-						imgs=OrcaObs(nimg=wp.nimg,/grabimg_wait)
-						p.date_obs2=get_systime(ctime=enctime)
-						print,'complete taking images',p.date_obs2
+		entime=strmid(enctime,0,15)+strmid(enctime,16,3)  ;20161212 TA
+		filename=wp.svdir+wp.fname+entime+'.fits'         ;20161212 TA
 
-						;print,get_systime(ctime=enctime)   ;~23sec
-						bridge[i]->SetVar,'imgs',imgs
-						;shmmap,get_os_handle=handle,template=imgs,/destroy_segment,get_name=seg_int
-						;z=shmvar(seg_int)
-						;for j=0,99 do z[*,*,j]=imgs[*,*,j]
-						;print,get_systime(ctime=enctime)   ;~25sec
-						;sttime=strmid(stctime,0,15)+strmid(stctime,16,3) ;comout 20161212 TA
-						;filename=wp.svdir+wp.fname+sttime+'.fits'        ;comout 20161212 TA
-						entime=strmid(enctime,0,15)+strmid(enctime,16,3)  ;20161212 TA
-						filename=wp.svdir+wp.fname+entime+'.fits'         ;20161212 TA
-						
-						; PREPARING HEADER
-						obs_type='POL'
-						case size(imgs,/type) of
-						1: bitpix=8
-						2: bitpix=16
-						3: bitpix=32
-						4: bitpix=32
-						5: bitpix=64
-						6: bitpix=64	 ; ? complex
-						7: bitpix=-1	 ; string
-						8: bitpix=-1  ; struct
-						9: bitpix=128 ; ? dcomplex
-						10: bitpix=-1	 ; pointer
-						11: bitpix=-1  ; objref
-						12: bitpix=16  ; uint
-						13: bitpix=32  ; ulong
-						14: bitpix=64  ; long64
-						15: bitpix=64  ; ulong64
-						endcase
-						
-						nax=size(imgs,/n_dimension)
-						dim=size(imgs,/dimension)
-						nax1=dim[0]
-						if nax ge 2 then nax2=dim[1] else nax2=1
-						if nax ge 3 then nax3=dim[2] else nax3=1
-
-						fh=strarr(36)
-						fh[0] =string('SIMPLE  = ','T',format='(a10,a20," /")')
-						fh[1] =string('BITPIX  = ',bitpix,format='(a10,i20," /")')
-						fh[2] =string('NAXIS   = ',nax,format='(a10,i20," /")')
-						fh[3] =string('NAXIS1  = ',nax1,format='(a10,i20," /")')
-						fh[4] =string('NAXIS2  = ',nax2,format='(a10,i20," /")')
-						fh[5] =string('NAXIS3  = ',nax3,format='(a10,i20," /")')
-						;fh[6] =string('DATE_OBS= ',sttime,format='(a10,a23," /")')     ;comment out 20161125 TA
-						fh[6] =string('DATE_OBS= ',p.date_obs,format='(a10,a23," /")')
-						fh[7] =string('DATE_OB2= ',p.date_obs2,format='(a10,a23," /")')	; end time of integ
-						fh[8] =string('TIMESYS = ',p.timesys,format='(a10,a20," /")')
-						fh[9] =string('OBSERVAT= ',p.observat,format='(a10,a20," /")')
-						fh[10]=string('TELESCOP= ',p.telescop,format='(a10,a20," /")')
-						fh[11]=string('CAMERA  = ',p.camera,format='(a10,a20," /")')
-						fh[12]=string('EXP     = ',p.expo,format='(a10,f20.10," /")')
-						fh[13]=string('DATA_TYP= ',p.data_typ,format='(a10,a20," /")')
-						fh[14]='VARTYPE = UINT'
-						fh[15]=string('X0      = ',p.RegionX,format='(a10,i20," /")')
-						fh[16]=string('Y0      = ',p.RegionY,format='(a10,i20," /")')
-						fh[17]=string('BIN     = ',p.bin,format='(a10,i20," /")')
-
-						;fh[18]=string('EXTEND  = ','F'		,format='(a10,a20," /")')
-						;fh[19]=string('BSCALE  = ','1.0'	,format='(a10,f20.1," /")')
-						;fh[20]=string('BZERO   = ','0.0'	,format='(a10,f20.1," /")')
-						;fh[21]=string('ORIGIN  = ','HIDA OBSERVATORY'	,format='(a10,a20," /")')
-						;fh[22]=string('INSTRUME= ',''		,format='(a10,a20," /")')
-						;fh[23]=string('PROGRAM = ','dstvspol_pro',format='(a10,a20," /")')
-						;fh[24]=string('PROG_VER= ','1'		,format='(a10,i20," /")')
-						fh[18]=string('OBS_TYPE= ',obs_type	,format='(a10,a20," /")')
-						fh[19]=string('POLSTATE= ',polstate	,format='(a10,a20," /")')
-						;fh[27]=string('DATE    = ',p.date_obs	,format='(a10,a23," /")')
-						;fh[28]=string('DATE_END= ',p.date_obs2	,format='(a10,a23," /")')
-						fh[20]=string('WVPLATE = ',wp.waveplate	,format='(a10,a20," /")')
-						fh[21]=string('PERIOD  = ',wp.period	,format='(a10,f20.10," /")')
-						fh[22]=string('DETNAM  = ',p.camera	,format='(a10,a20," /")')
-						;fh[32]=string('DET_TMP = ',-1		,format='(a10,i20," /")')
-						;fh[33]=string('DET_PWR = ',-1		,format='(a10,i20," /")')
-						;fh[34]=string('EXPTIME = ',p.expo	,format='(a10,f20.10," /")')
-						fh[23]=string('CAMGAIN = ',wp.gain	,format='(a10,i20," /")')
-						;fh[36]=string('FGBINX  = ',p.bin	,format='(a10,i20," /")')
-						;fh[37]=string('FGBINY  = ',p.bin	,format='(a10,i20," /")')
-						;fh[38]=string('X1      = ',p.RegionX+wp.Width-1,format='(a10,i20," /")')
-						;fh[39]=string('Y1      = ',p.RegionY+wp.Height-1,format='(a10,i20," /")')
-						fh[24]=string('WAVE    = ',wp.wavelength,format='(a10,i20," /")')
-						fh[25]=string('R       = ',0.0		,format='(a10,f20.10," /")')
-						fh[26]=string('P       = ',0.0		,format='(a10,f20.10," /")')
-						fh[27]=string('I       = ',0.0		,format='(a10,f20.10," /")')
-						fh[28]=string('HA      = ',0.0		,format='(a10,f20.10," /")')
-						fh[29]=string('ZD      = ',0.0		,format='(a10,f20.10," /")')
-						fh[30]=string('AZ      = ',0.0		,format='(a10,f20.10," /")')
-						fh[31]=string('IMGROT  = ',0.0		,format='(a10,f20.10," /")')
-						fh[32]='COMMENT = none'
-						fh[33]='HISTORY = RAW'
-						fh[34]=string(' ',format='(a10)')
-						fh[35]=string('END       ',format='(a10)')
-						blnk80=string(' ',format='(a80)')
-						fh=strmid(fh+blnk80,0,80)
-
-						bridge[i]->SetVar,'fh',fh
-						bridge[i]->SetVar,'filename',filename
-						bridge[i]->Execute,	$
-							'savefits_pp_nostr,imgs,fh,file=filename',/nowait
-						;print,get_systime(ctime=enctime)   ;~28sec
-						print,'saved   '+filename
-						wait,0.1
-						done=1b
-						
-						break      
-					endif
-				endfor
-			endwhile
-			;print,get_systime(ctime=enctime)   ;~26sec
-		; ----- END : skip since if 0 -------------------------------------------
-		; 
-		endif else begin;---------------------------
-			imgs=OrcaObs(nimg=wp.nimg,/grabimg_wait)
-			p.date_obs2=get_systime(ctime=enctime)
-			print,'complete taking images',p.date_obs2
-
-			  ;print,'finish takeing image',p.date_obs2 & wait,0.1   ;~26sec
-			  ;orcafin					;comment out 20160709 T.A.
-			;sttime=strmid(stctime,0,15)+strmid(stctime,16,3) ;comout 20161212 TA
-			;filename=wp.svdir+wp.fname+sttime+'.fits'        ;comout 20161212 TA
-			entime=strmid(enctime,0,15)+strmid(enctime,16,3)  ;20161212 TA
-			filename=wp.svdir+wp.fname+entime+'.fits'         ;20161212 TA
-
-			savefits_pp,imgs,p,wp,'POL',polstate,p.date_obs,file=filename
-			print,'saved   '+filename
-			wait,0.1
+		; fits saving using IDL_IDLBridge
+		imgs_buffer = imgs
+		bridge[bi]->SetVar, "imgs_buffer", imgs_buffer
+		bridge[bi]->SetVar, "p", p
+		bridge[bi]->SetVar, "wp", wp
+		bridge[bi]->SetVar, "polstate", polstate
+		bridge[bi]->SetVar, "date_obs", p.date_obs
+		bridge[bi]->SetVar, "filename", filename
+		bridge[bi]->Execute, "savefits_pp, imgs_buffer, p, wp, 'POL', polstate, date_obs, file=filename", /nowait
+		;savefits_pp,imgs,p,wp,'POL',polstate,p.date_obs,file=filename
+		wait,0.05
 		endelse
 	end
 endcase

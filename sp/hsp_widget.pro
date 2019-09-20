@@ -398,7 +398,9 @@ print,'uvalue=',uvalue,',  value=',value
 		for i=0,wp.nf-1 do begin	
 			print,'===== # '+strcompress(string(i+1),/remove_all)+' ====='
 			caldat,systime(/JULIAN), mon1 , day1 , year1 , hour1 , minu1 , seco1
-			fn[i]=PolObs('',wp,firstimg=firstimg)
+
+			bi = i mod wp.n_CPU
+			fn[i]=PolObs('', wp, bi, firstimg=firstimg)
 
 			; display the first image in sequence
 			if 1 then begin
@@ -433,38 +435,6 @@ print,'uvalue=',uvalue,',  value=',value
 				print,'take ',dtime,'sec'
 			endelse
 		endfor
-
-		goto,jump
-		;==�\��==;
-		;if (wp.binx ne 1) and (wp.biny ne 1) then begin 
-			;wx=wp.Width/4	& wy=wp.Height/4  ;20161212 TA commentout
-			case wp.camera of
-				0:begin
-					wx=800	& wy=600
-				end
-				1:begin
-					wx=600	& wy=600
-				end
-			endcase
-			window,0,ys=wy,xs=wx
-			for i=0,wp.nf-1 do begin
-				case wp.camera of
-					0:mreadfits,fn[i],h,img
-					1:begin
-						img=uint(rfits(fn[i],head=sh))
-						byteorder,img
-					end
-				endcase
-				img=rebin(img,wx,wy,wp.nimg)
-				for j=0,wp.nimg-1 do begin
-					tvscl,img[*,*,j]
-					xyouts,0.05,0.05,string(j)+' binx='+	$
-						string(wp.binx,format='(i1)')+	$
-						' biny='+string(wp.biny,format='(i1)'),/norm
-				endfor
-			endfor
-		;endif else print,'not display observed images because << binning 1>>'
-		jump:
 		OrcaOutTriggerDefault							; 20160710 T.A.
 		; in `OrcaOutTriggerDefault`, 
 
@@ -714,13 +684,12 @@ p=orcainit();20160709 T.A.
 
 ;-----  prepare object array for parallel processing -----------
 ; HW_NCPU: The number of CPUs contained in the system on which IDL is currently running.
-nCPU=!CPU.HW_NCPU
+;nCPU=!CPU.HW_NCPU
+nCPU = 3
 ; initialize an object array with size of nCPU-1, initial value is NULL 
-bridge=objarr(nCPU-1)
+bridge=objarr(nCPU)
 ; each element corresponds to an "IDL_IDLBridge" object
-for i=0,nCPU-2 do begin
-	bridge[i]=obj_new('IDL_IDLBridge');IDL_IDLbridge()
-endfor
+for i=0,nCPU-1 do bridge[i]=obj_new('IDL_IDLBridge');IDL_IDLbridge()
 ;----------------------------------------------------------------
 tmp='                                                             '
 ; structure to hold widget parameters
@@ -764,6 +733,7 @@ wp={widget_param, $
 	free:		1,		        $		; free run or fixed cadance		;20160721
 	cds:		30.,		    $		; cadance (sec)				    ;20160721
 	n_evsample: 	0l 		    $		; omake ; what is this?
+	n_CPU     :   nCPU           $       ; number of cpu for asynchronous fits saving
 	}
 
 ;-----  exception for camera GE1650 -----------------------------
