@@ -171,6 +171,23 @@ print,'uvalue=',uvalue,',  value=',value
   			widget_CONTROL,wd.regiony,set_value=string(wp.RegionY, form='(i5)')
 		endif else begin  &  wp.RegionY=fix(value)  &  endelse  &  endif
 
+	; set nCPU
+	if (uvalue eq 'nCPU') then begin
+		
+		nCPU = fix(value)
+		
+		if nCPU gt 3 then begin
+		    nCPU = 3
+			print, " 3 CPU is enough for saving fits file."
+		endif
+
+		;-----  prepare object array for parallel processing -----------
+		bridge=objarr(nCPU)
+		for i=0,nCPU-1 do bridge[i]=obj_new('IDL_IDLBridge');IDL_IDLbridge()
+		
+	endif
+	
+
 	; set free
 	if (uvalue eq "free") then begin
 		wp.free = fix(value[0])
@@ -399,7 +416,7 @@ print,'uvalue=',uvalue,',  value=',value
 			print,'===== # '+strcompress(string(i+1),/remove_all)+' ====='
 			caldat,systime(/JULIAN), mon1 , day1 , year1 , hour1 , minu1 , seco1
 
-			bi = i mod wp.n_CPU
+			bi = i mod wp.nCPU
 			fn[i]=PolObs('', wp, bi, firstimg=firstimg)
 
 			; display the first image in sequence
@@ -455,42 +472,42 @@ print,'uvalue=',uvalue,',  value=',value
 
 	; GET CAL
 	if (uvalue eq "calib") then begin
+		
 		OrcaOutTriggerExposure					; 20160710 T.A.
-		fn=CalibObs(wp,wd)
-		;==�\��==;
-		;if (wp.binx ne 1) and (wp.biny ne 1) then begin 
-			; initialize window for visualization
+		fn=CalibObs(wp,wd)  ; inside CalibObs, we capture 1 sequence 9 set, 9 x nimg images
+		
+		; initialize window for visualization
+		case wp.camera of
+			0:begin
+				wx=800	& wy=600
+			end
+			1:begin
+				wx=600	& wy=600
+			end
+		endcase
+		window,0,ys=wy,xs=wx
+
+		for i=0,wp.nf-1 do begin
+			
 			case wp.camera of
-				0:begin
-					wx=800	& wy=600
-				end
+				0:mreadfits,fn[i],h,img
 				1:begin
-					wx=600	& wy=600
+					; fn[i] is a binary sequence like 1010001010001010... with size of 2048 x 2048 x 12bit
+					; so we need to convert it into numeric array
+					img=uint(rfits(fn[i],head=sh))
+					byteorder,img
 				end
 			endcase
-			window,0,ys=wy,xs=wx
-
-			for i=0,wp.nf-1 do begin
-				
-				case wp.camera of
-					0:mreadfits,fn[i],h,img
-					1:begin
-						; fn[i] is a binary sequence like 1010001010001010... with size of 2048 x 2048 x 12bit
-						; so we need to convert it into numeric array
-						img=uint(rfits(fn[i],head=sh))
-						byteorder,img
-					end
-				endcase
-				; display image sequence
-				img=congrid(img,wx,wy,wp.nimg)
-				for j=0,wp.nimg-1 do begin
-					tvscl,img[*,*,j]
-					xyouts,0.05,0.05,string(j)+' binx='+	$
-						string(wp.binx,format='(i1)')+	$
-						' biny='+string(wp.biny,format='(i1)'),/norm
-				endfor
+			; display image sequence
+			img=congrid(img,wx,wy,wp.nimg)
+			for j=0,wp.nimg-1 do begin
+				tvscl,img[*,*,j]
+				xyouts,0.05,0.05,string(j)+' binx='+	$
+					string(wp.binx,format='(i1)')+	$
+					' biny='+string(wp.biny,format='(i1)'),/norm
 			endfor
-			OrcaOutTriggerDefault							; 20160710 T.A.
+		endfor
+		OrcaOutTriggerDefault							; 20160710 T.A.
 		;endif else print,'not display observed images because << binning 1>>'
 	;MessageBox,'!!FINISH GETING CALIBRATION DATA!!'
 	print,''
@@ -682,14 +699,6 @@ ref_pulse=4000.*5.		; resolution of motor * gear ratio (CRK523PAP-N5)
 time0=get_systime(ctime=time)	;time=gettime(), 20140629
 p=orcainit();20160709 T.A.
 
-;-----  prepare object array for parallel processing -----------
-; HW_NCPU: The number of CPUs contained in the system on which IDL is currently running.
-;nCPU=!CPU.HW_NCPU
-nCPU = 3
-; initialize an object array with size of nCPU-1, initial value is NULL 
-bridge=objarr(nCPU)
-; each element corresponds to an "IDL_IDLBridge" object
-for i=0,nCPU-1 do bridge[i]=obj_new('IDL_IDLBridge');IDL_IDLbridge()
 ;----------------------------------------------------------------
 tmp='                                                             '
 ; structure to hold widget parameters
@@ -733,7 +742,7 @@ wp={widget_param, $
 	free:		1,		        $		; free run or fixed cadance		;20160721
 	cds:		30.,		    $		; cadance (sec)				    ;20160721
 	n_evsample: 	0l 		    $		; omake ; what is this?
-	n_CPU     :   nCPU           $       ; number of cpu for asynchronous fits saving
+	nCPU     :   0              $       ; number of cpu for asynchronous fits saving
 	}
 
 ;-----  exception for camera GE1650 -----------------------------
@@ -789,6 +798,7 @@ wd={wd_cdio,	$
 	waveplate:	0l,	$		; waveplate				;20110827
 	free:		0l,	$		; free run or fixed cadance		;20160721
 	cds:		0l,	$		; cadance (sec)			;20160721
+	nCPU:       0,  $       ; number of cpu for asynchronous fits saving
 	Exit:		0l	$
 }
 main = WIDGET_BASE(title='Horizontal Specto-Polarimeter',/column)
@@ -841,6 +851,10 @@ bs_sp=widget_base(main, /column, /frame)
 		lab=widget_label(bs_sp5,value='    �@�@�@RegionY : ')
 		wd.regiony=widget_text(bs_sp5,value=string(wp.RegionY, form='(i5)'), xsize=6, ysize=1, uvalue='regiony',/edit)
 
+	bs_sp6=widget_base(bs_sp, /row)
+
+		lab=widget_label(bs_sp6,value='    nCPU for saving fits: ')
+		wd.nCPU = widget_text(bs_sp5,value=string(wp.nCPU, form='(i5)'), xsize=6, ysize=1, uvalue='nCPU',/edit)
 ;------- removed ------------------------------------------------
 	bs_sp6=widget_base(bs_sp, /row)
 		

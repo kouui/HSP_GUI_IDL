@@ -554,18 +554,19 @@ case wp.camera of
 		entime=strmid(enctime,0,15)+strmid(enctime,16,3)  ;20161212 TA
 		filename=wp.svdir+wp.fname+entime+'.fits'         ;20161212 TA
 
-		; fits saving using IDL_IDLBridge
-		imgs_buffer = imgs
-		bridge[bi]->SetVar, "imgs_buffer", imgs_buffer
-		bridge[bi]->SetVar, "p", p
-		bridge[bi]->SetVar, "wp", wp
-		bridge[bi]->SetVar, "polstate", polstate
-		bridge[bi]->SetVar, "date_obs", p.date_obs
-		bridge[bi]->SetVar, "filename", filename
-		bridge[bi]->Execute, "savefits_pp, imgs_buffer, p, wp, 'POL', polstate, date_obs, file=filename", /nowait
-		;savefits_pp,imgs,p,wp,'POL',polstate,p.date_obs,file=filename
-		wait,0.05
+		if wp.nCPU gt 0 then begin  ; fits saving using IDL_IDLBridge
+			imgs_buffer = imgs
+			bridge[bi]->SetVar, "imgs_buffer", imgs_buffer
+			bridge[bi]->SetVar, "p", p
+			bridge[bi]->SetVar, "wp", wp
+			bridge[bi]->SetVar, "polstate", polstate
+			bridge[bi]->SetVar, "date_obs", p.date_obs
+			bridge[bi]->SetVar, "filename", filename
+			bridge[bi]->Execute, "savefits_pp, imgs_buffer, p, wp, 'POL', polstate, date_obs, file=filename", /nowait
+		endif else begin            ; fits saving without IDL_IDLBridge
+			savefits_pp,imgs,p,wp,'POL',polstate,p.date_obs,file=filename
 		endelse
+		wait,0.05
 	end
 endcase
 
@@ -579,48 +580,55 @@ END
 ;**************************************************************
 FUNCTION CalibObs,wp,wd
 ;--------------------------------------------------------------
+; for CalibObs, we have to wait for the turret bridge is unnecessary
 
 fn=strarr(9)
 waittime=10.
+
 cdio_init
-						;wp.input=cdio_input()
-  widget_CONTROL,wd.in,set_value=wp.input
+widget_CONTROL,wd.in,set_value=wp.input
+
 tmp=''
 cdio_o45,wp,wd	&	purpose='45'
 while (tmp eq '') do begin
+	
 	wp.input=cdio_input()
-	  widget_CONTROL,wd.in,set_value=wp.input
+	widget_CONTROL,wd.in,set_value=wp.input
 	wp.output=cdio_outstate()
-	  widget_CONTROL,wd.out,set_value=wp.output
+	widget_CONTROL,wd.out,set_value=wp.output
 
 	if (wp.input eq '45��') and (purpose eq '45') then begin
 		print,'45'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[0]=PolObs('45',wp)
 		wait,waittime
 		cdio_o90,wp,wd	&	purpose='90'
-print,'===== 45���I�� ====='
+	print,'===== 45���I�� ====='
 	endif
+	
 	if (wp.input eq '90��') and (purpose eq '90')  then begin
 		print,'90'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[1]=PolObs('90',wp)
 		wait,waittime
 		cdio_o135,wp,wd	&	purpose='135'
-print,'===== 90���I�� ====='
+	print,'===== 90���I�� ====='
 	endif
+	
 	if (wp.input eq  '135��') and (purpose eq '135')  then begin
 		print,'135'	&wait,5	;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[2]=PolObs('135',wp)
 		wait,waittime
 		cdio_o180,wp,wd	&	purpose='180'
-print,'===== 135���I�� ====='
+	print,'===== 135���I�� ====='
 	endif
+	
 	if (wp.input eq  '180��') and (purpose eq '180') then begin
 		print,'180'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[3]=PolObs('180',wp)
 		wait,waittime
 		cdio_o225,wp,wd	&	purpose='225'
-print,'===== 180���I�� ====='
+	print,'===== 180���I�� ====='
 	endif
+
 ;	if (wp.input eq  '225��') and (purpose eq '225') then begin
 	if (wp.input eq  '135��') and (purpose eq '225') then begin
 		print,'225'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
@@ -630,16 +638,18 @@ print,'===== 180���I�� ====='
 		;wait,2
 					;		while (wp.input eq  '135��') do wp.input=cdio_input()
 
-print,'===== 225���I�� ====='
+	print,'===== 225���I�� ====='
 	endif
+
 ;	if (wp.input eq  '270��') and (purpose eq '270') then begin
 	if (wp.input eq  '135��') and (purpose eq '270') then begin
 		print,'270'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[5]=PolObs('270',wp)
 		wait,waittime
 		cdio_o315,wp,wd	&	purpose='315'
-print,'===== 270���I�� ====='
+	print,'===== 270���I�� ====='
 	endif
+	
 	if (wp.input eq  '315��') and (purpose eq '315') then begin
 		print,'315'	&wait,5		;wait,5���Ȃ��Ɠ��͐M���̏d�Ȃ肪�N���遖�|�C���g�I�I
 		fn[6]=PolObs('315',wp)
@@ -652,15 +662,16 @@ print,'===== 315���I�� ====='
 		fn[7]=PolObs('0',wp)
 		wait,waittime
 		cdio_op25,wp,wd	&	purpose='22.5'
-print,'===== 0���I�� ====='
+	print,'===== 0���I�� ====='
 	endif
+	
 	if (wp.input eq  '+22.5��') and (purpose eq '22.5')  then begin
 ;MessageBox,'���Ό��B�eOK ??'
 		print,'non'	&wait,5.
 		fn[8]=PolObs('',wp)
 		wait,waittime
 		tmp='finish'
-print,'===== 22.5���I�� ====='
+	print,'===== 22.5���I�� ====='
 	endif
 
 	;print,wp.input
